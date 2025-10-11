@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Checkers Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Checkers Game</h1>
+        
+        <!-- Game Status using Jinja -->
+        <div class="game-status">
+            <!-- Score Display -->
+            <div class="scores">
+                <span class="player-green">Green: {{ session.green_score or 0 }}</span> | 
+                <span class="player-white">White: {{ session.white_score or 0 }}</span>
+            </div>
+            
+            {% if session.winner %}
+                <h2 class="winner"> {{ session.winner.title() }} Wins! </h2>
+                <p>Game Over - <a href="{{ url_for('reset') }}">Start New Game</a></p>
+            {% else %}
+                <h2>Current Player: 
+                    <span class="player-{{ current_player }}">{{ current_player.title() }}</span>
+                </h2>
+                {% if selected %}
+                    <p>Selected piece at: Row {{ selected[0] + 1 }}, Col {{ selected[1] + 1 }}</p>
+                    <p><em>Click destination square or another piece to select</em></p>
+                {% else %}
+                    <p>Click a {{ current_player }} piece to select it</p>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Checkers Board using Jinja Loops -->
+        <div class="board">
+            {% for row_index in range(8) %}
+                <div class="board-row">
+                    {% for col_index in range(8) %}
+                        {% set square_color = 'light' if (row_index + col_index) % 2 == 0 else 'dark' %}
+                        {% set is_selected = selected and selected[0] == row_index and selected[1] == col_index %}
+                        
+                        <div class="square {{ square_color }} {% if is_selected %}selected{% endif %}" 
+                             {% if not session.winner %}onclick="location.href='{{ url_for('move', row=row_index, col=col_index) }}'"{% endif %}>
+                            
+                            <!-- Display pieces using Jinja conditionals -->
+                            {% if board[row_index][col_index] %}
+                                {% set piece = board[row_index][col_index] %}
+                                <div class="piece {{ piece.color }} {% if piece.king %}king{% endif %}">
+                                    {% if piece.king %}♔{% else %}●{% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Game Controls -->
+        <div class="controls">
+            <a href="{{ url_for('reset') }}" class="btn">Reset Game</a>
+            <a href="{{ url_for('index') }}" class="btn">Home</a>
+        </div>
+    </div>
+</body>
+</html>

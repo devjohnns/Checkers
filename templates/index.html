@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Checkers Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Checkers Game</h1>
+        <p>Two-Player Human vs Human</p>
+        <a href="{{ url_for('new_game') }}" class="start-btn">Start New Game</a>
+    </div>
+</body>
+</html>
