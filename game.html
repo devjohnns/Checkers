@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Checkers Game</title>
+    <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Checkers Game</h1>
+        <div class="game-status">
+            <div class="scores">
+                <span class="player-green">Green: <span id="green-score">0</span></span> | 
+                <span class="player-white">White: <span id="white-score">0</span></span>
+            </div>
+            <h2 id="status">Current Player: <span id="current-player" class="player-green">Green</span></h2>
+            <p id="message">Click a green piece to select it</p>
+        </div>
+        <div id="board" class="board"></div>
+        <div class="controls">
+            <button onclick="resetGame()" class="btn">Reset Game</button>
+            <button onclick="location.href='index.html'" class="btn">Home</button>
+        </div>
+    </div>
+    <script src="static/js/game.js"></script>
+</body>
+</html>
