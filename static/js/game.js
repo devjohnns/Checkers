@@ -51,10 +51,9 @@ function renderBoard() {
 }
 
 function handleClick(row, col) {
-    if (aiMode && currentPlayer === 'white') return;
     if (!selected) {
         if (board[row][col] && board[row][col].color === currentPlayer) {
-            if (aiMode && board[row][col].color === 'white') return;
+            if (aiMode && currentPlayer === 'white') return;
             selected = [row, col];
             document.getElementById('message').textContent = `Selected piece at: Row ${row + 1}, Col ${col + 1}. Click destination square or another piece to select`;
             renderBoard();
@@ -91,9 +90,9 @@ function executeMove(fromRow, fromCol, toRow, toCol, captured) {
         currentPlayer = currentPlayer === 'green' ? 'white' : 'green';
         document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
         document.getElementById('current-player').className = `player-${currentPlayer}`;
-        document.getElementById('message').textContent = `Click a ${currentPlayer} piece to select it`;
+        document.getElementById('message').textContent = aiMode && currentPlayer === 'white' ? 'Computer is thinking...' : `Click a ${currentPlayer} piece to select it`;
         if (aiMode && currentPlayer === 'white') {
-            setTimeout(aiMove, 500);
+            setTimeout(aiMove, 800);
         }
     }
 }
@@ -157,7 +156,10 @@ function aiMove() {
             if (board[r][c] && board[r][c].color === 'white') {
                 for (let tr = 0; tr < 8; tr++) {
                     for (let tc = 0; tc < 8; tc++) {
+                        const savedPlayer = currentPlayer;
+                        currentPlayer = 'white';
                         const result = makeMove(r, c, tr, tc);
+                        currentPlayer = savedPlayer;
                         if (result.valid) {
                             moves.push({ from: [r, c], to: [tr, tc], captured: result.captured });
                         }
@@ -169,6 +171,7 @@ function aiMove() {
     if (moves.length > 0) {
         const captureMoves = moves.filter(m => m.captured);
         const move = captureMoves.length > 0 ? captureMoves[Math.floor(Math.random() * captureMoves.length)] : moves[Math.floor(Math.random() * moves.length)];
+        currentPlayer = 'white';
         executeMove(move.from[0], move.from[1], move.to[0], move.to[1], move.captured);
     }
 }
