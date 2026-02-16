@@ -51,6 +51,7 @@ function renderBoard() {
 }
 
 function handleClick(row, col) {
+    if (aiMode && currentPlayer === 'white') return;
     if (!selected) {
         if (board[row][col] && board[row][col].color === currentPlayer) {
             selected = [row, col];
