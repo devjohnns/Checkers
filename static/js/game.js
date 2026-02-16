@@ -80,6 +80,7 @@ function executeMove(fromRow, fromCol, toRow, toCol, captured) {
     if ((currentPlayer === 'green' && toRow === 7) || (currentPlayer === 'white' && toRow === 0)) {
         board[toRow][toCol].king = true;
     }
+    renderBoard();
     winner = checkWinner();
     if (winner) {
         document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
@@ -93,7 +94,6 @@ function executeMove(fromRow, fromCol, toRow, toCol, captured) {
             setTimeout(aiMove, 500);
         }
     }
-    renderBoard();
 }
 
 function makeMove(fromRow, fromCol, toRow, toCol) {
