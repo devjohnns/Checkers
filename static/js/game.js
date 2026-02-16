@@ -54,6 +54,7 @@ function handleClick(row, col) {
     if (aiMode && currentPlayer === 'white') return;
     if (!selected) {
         if (board[row][col] && board[row][col].color === currentPlayer) {
+            if (aiMode && board[row][col].color === 'white') return;
             selected = [row, col];
             document.getElementById('message').textContent = `Selected piece at: Row ${row + 1}, Col ${col + 1}. Click destination square or another piece to select`;
             renderBoard();
