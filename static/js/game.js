@@ -3,6 +3,7 @@ let currentPlayer = 'green';
 let selected = null;
 let winner = null;
 let scores = { green: 0, white: 0 };
+let aiMode = new URLSearchParams(window.location.search).get('mode') === 'ai';
 
 function createBoard() {
     board = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -60,31 +61,39 @@ function handleClick(row, col) {
         const [fromRow, fromCol] = selected;
         const moveResult = makeMove(fromRow, fromCol, row, col);
         if (moveResult.valid) {
-            board[row][col] = board[fromRow][fromCol];
-            board[fromRow][fromCol] = null;
-            if (moveResult.captured) {
-                const [capRow, capCol] = moveResult.captured;
-                board[capRow][capCol] = null;
-                scores[currentPlayer]++;
-                document.getElementById(`${currentPlayer}-score`).textContent = scores[currentPlayer];
-            }
-            if ((currentPlayer === 'green' && row === 7) || (currentPlayer === 'white' && row === 0)) {
-                board[row][col].king = true;
-            }
-            winner = checkWinner();
-            if (winner) {
-                document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
-                document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
-            } else {
-                currentPlayer = currentPlayer === 'green' ? 'white' : 'green';
-                document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
-                document.getElementById('current-player').className = `player-${currentPlayer}`;
-                document.getElementById('message').textContent = `Click a ${currentPlayer} piece to select it`;
-            }
+            executeMove(fromRow, fromCol, row, col, moveResult.captured);
         }
         selected = null;
         renderBoard();
     }
+}
+
+function executeMove(fromRow, fromCol, toRow, toCol, captured) {
+    board[toRow][toCol] = board[fromRow][fromCol];
+    board[fromRow][fromCol] = null;
+    if (captured) {
+        const [capRow, capCol] = captured;
+        board[capRow][capCol] = null;
+        scores[currentPlayer]++;
+        document.getElementById(`${currentPlayer}-score`).textContent = scores[currentPlayer];
+    }
+    if ((currentPlayer === 'green' && toRow === 7) || (currentPlayer === 'white' && toRow === 0)) {
+        board[toRow][toCol].king = true;
+    }
+    winner = checkWinner();
+    if (winner) {
+        document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
+        document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
+    } else {
+        currentPlayer = currentPlayer === 'green' ? 'white' : 'green';
+        document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
+        document.getElementById('current-player').className = `player-${currentPlayer}`;
+        document.getElementById('message').textContent = `Click a ${currentPlayer} piece to select it`;
+        if (aiMode && currentPlayer === 'white') {
+            setTimeout(aiMove, 500);
+        }
+    }
+    renderBoard();
 }
 
 function makeMove(fromRow, fromCol, toRow, toCol) {
@@ -137,6 +146,29 @@ function resetGame() {
     document.getElementById('message').textContent = 'Click a green piece to select it';
     createBoard();
     renderBoard();
+}
+
+function aiMove() {
+    const moves = [];
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if (board[r][c] && board[r][c].color === 'white') {
+                for (let tr = 0; tr < 8; tr++) {
+                    for (let tc = 0; tc < 8; tc++) {
+                        const result = makeMove(r, c, tr, tc);
+                        if (result.valid) {
+                            moves.push({ from: [r, c], to: [tr, tc], captured: result.captured });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (moves.length > 0) {
+        const captureMoves = moves.filter(m => m.captured);
+        const move = captureMoves.length > 0 ? captureMoves[Math.floor(Math.random() * captureMoves.length)] : moves[Math.floor(Math.random() * moves.length)];
+        executeMove(move.from[0], move.from[1], move.to[0], move.to[1], move.captured);
+    }
 }
 
 createBoard();
