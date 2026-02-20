@@ -4,109 +4,7 @@ let selected = null;
 let winner = null;
 let scores = { green: 0, white: 0 };
 let gameMode = new URLSearchParams(window.location.search).get('mode');
-let roomCode = new URLSearchParams(window.location.search).get('room');
-let playerColor = null;
-let peer = null;
-let conn = null;
-
-if (gameMode === 'online' && roomCode) {
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/peerjs@1.5.0/dist/peerjs.min.js';
-    script.onload = initPeer;
-    script.onerror = () => {
-        console.error('Failed to load PeerJS');
-        board = createBoard();
-        renderBoard();
-        document.getElementById('message').textContent = 'Multiplayer unavailable. Playing locally.';
-    };
-    document.head.appendChild(script);
-} else {
-    board = createBoard();
-    renderBoard();
-}
-
-function initPeer() {
-    try {
-        peer = new Peer(roomCode);
-        
-        peer.on('open', (id) => {
-            console.log('Peer opened:', id);
-            playerColor = 'green';
-            board = createBoard();
-            renderBoard();
-            document.getElementById('message').textContent = 'Waiting for opponent to join...';
-        });
-        
-        peer.on('connection', (connection) => {
-            console.log('Opponent connected');
-            conn = connection;
-            setupConnection();
-            document.getElementById('message').textContent = 'Opponent joined! You are Green - your turn!';
-        });
-        
-        peer.on('error', (err) => {
-            console.log('Peer error:', err.type);
-            if (err.type === 'unavailable-id') {
-                playerColor = 'white';
-                conn = peer.connect(roomCode);
-                setupConnection();
-            } else {
-                board = createBoard();
-                renderBoard();
-                document.getElementById('message').textContent = 'Connection error. Playing locally.';
-            }
-        });
-    } catch (error) {
-        console.error('PeerJS init error:', error);
-        board = createBoard();
-        renderBoard();
-        document.getElementById('message').textContent = 'Multiplayer unavailable. Playing locally.';
-    }
-}
-
-function setupConnection() {
-    conn.on('open', () => {
-        if (playerColor === 'green') {
-            sendGameState();
-        } else {
-            document.getElementById('message').textContent = 'Connected! You are White - waiting for Green...';
-        }
-    });
-    
-    conn.on('data', (data) => {
-        board = data.board;
-        currentPlayer = data.currentPlayer;
-        scores = data.scores;
-        winner = data.winner;
-        updateUI();
-        renderBoard();
-    });
-}
-
-function sendGameState() {
-    if (conn && conn.open) {
-        conn.send({
-            board: board,
-            currentPlayer: currentPlayer,
-            scores: scores,
-            winner: winner
-        });
-    }
-}
-
-function updateUI() {
-    document.getElementById('green-score').textContent = scores.green;
-    document.getElementById('white-score').textContent = scores.white;
-    document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
-    document.getElementById('current-player').className = `player-${currentPlayer}`;
-    
-    if (winner) {
-        document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
-        document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
-    } else {
-        document.getElementById('message').textContent = currentPlayer === playerColor ? 'Your turn!' : 'Opponent\'s turn...';
-    }
-}
+let aiMode = gameMode === 'ai';
 
 function createBoard() {
     const newBoard = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -155,8 +53,7 @@ function renderBoard() {
 }
 
 function handleClick(row, col) {
-    if (gameMode === 'online' && currentPlayer !== playerColor) return;
-    if (gameMode === 'ai' && currentPlayer === 'white') return;
+    if (aiMode && currentPlayer === 'white') return;
     
     if (!selected) {
         if (board[row][col] && board[row][col].color === currentPlayer) {
@@ -188,31 +85,23 @@ function executeMove(fromRow, fromCol, toRow, toCol, captured) {
     }
     
     winner = checkWinner();
-    if (!winner) {
-        currentPlayer = currentPlayer === 'green' ? 'white' : 'green';
-    }
+    currentPlayer = winner ? currentPlayer : (currentPlayer === 'green' ? 'white' : 'green');
     
-    if (gameMode === 'online') {
-        sendGameState();
-        updateUI();
-        renderBoard();
+    document.getElementById('green-score').textContent = scores.green;
+    document.getElementById('white-score').textContent = scores.white;
+    document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
+    document.getElementById('current-player').className = `player-${currentPlayer}`;
+    
+    if (winner) {
+        document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
+        document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
     } else {
-        document.getElementById('green-score').textContent = scores.green;
-        document.getElementById('white-score').textContent = scores.white;
-        document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
-        document.getElementById('current-player').className = `player-${currentPlayer}`;
-        
-        if (winner) {
-            document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
-            document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
-        } else {
-            document.getElementById('message').textContent = gameMode === 'ai' && currentPlayer === 'white' ? 'Computer is thinking...' : `Click a ${currentPlayer} piece to select it`;
-            if (gameMode === 'ai' && currentPlayer === 'white') {
-                setTimeout(aiMove, 800);
-            }
+        document.getElementById('message').textContent = aiMode && currentPlayer === 'white' ? 'Computer is thinking...' : `Click a ${currentPlayer} piece to select it`;
+        if (aiMode && currentPlayer === 'white') {
+            setTimeout(aiMove, 800);
         }
-        renderBoard();
     }
+    renderBoard();
 }
 
 function makeMove(fromRow, fromCol, toRow, toCol) {
@@ -258,20 +147,13 @@ function resetGame() {
     winner = null;
     scores = { green: 0, white: 0 };
     board = createBoard();
-    
-    if (gameMode === 'online') {
-        sendGameState();
-        updateUI();
-        renderBoard();
-    } else {
-        document.getElementById('green-score').textContent = '0';
-        document.getElementById('white-score').textContent = '0';
-        document.getElementById('current-player').textContent = 'Green';
-        document.getElementById('current-player').className = 'player-green';
-        document.getElementById('status').innerHTML = 'Current Player: <span id="current-player" class="player-green">Green</span>';
-        document.getElementById('message').textContent = 'Click a green piece to select it';
-        renderBoard();
-    }
+    document.getElementById('green-score').textContent = '0';
+    document.getElementById('white-score').textContent = '0';
+    document.getElementById('current-player').textContent = 'Green';
+    document.getElementById('current-player').className = 'player-green';
+    document.getElementById('status').innerHTML = 'Current Player: <span id="current-player" class="player-green">Green</span>';
+    document.getElementById('message').textContent = 'Click a green piece to select it';
+    renderBoard();
 }
 
 function aiMove() {
@@ -300,3 +182,6 @@ function aiMove() {
         executeMove(move.from[0], move.from[1], move.to[0], move.to[1], move.captured);
     }
 }
+
+board = createBoard();
+renderBoard();

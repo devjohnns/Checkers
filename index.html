@@ -3,60 +3,13 @@
 <head>
     <title>Checkers Game</title>
     <link rel="stylesheet" href="static/css/style.css">
-    <style>
-        .start-btn {
-            display: block;
-            width: 300px;
-            margin: 10px auto;
-            padding: 15px 30px;
-            background-color: #4CAF50;
-            color: white;
-            text-decoration: none;
-            border: none;
-            border-radius: 5px;
-            font-size: 18px;
-            cursor: pointer;
-        }
-        .start-btn:hover {
-            background-color: #45a049;
-        }
-        #joinCode {
-            display: block;
-            width: 280px;
-            margin: 10px auto;
-            padding: 10px;
-            font-size: 16px;
-            border: 2px solid #ccc;
-            border-radius: 5px;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <h1>Checkers Game</h1>
         <p>Choose Game Mode</p>
         <button onclick="location.href='game.html?mode=ai'" class="start-btn">Play vs Computer</button>
-        <button onclick="location.href='game.html?mode=2p'" class="start-btn">Two Player (Local)</button>
-        <button onclick="createRoom()" class="start-btn">Play Online with Friend</button>
-        <div style="margin-top: 20px;">
-            <input type="text" id="joinCode" placeholder="Enter room code">
-            <button onclick="joinRoom()" class="start-btn">Join Friend's Game</button>
-        </div>
+        <button onclick="location.href='game.html?mode=2p'" class="start-btn">Two Player</button>
     </div>
-    <script>
-        function createRoom() {
-            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-            alert('Room created! Share this code: ' + code);
-            location.href = 'game.html?mode=online&room=' + code;
-        }
-        function joinRoom() {
-            const code = document.getElementById('joinCode').value.trim().toUpperCase();
-            if (code.length === 6) {
-                location.href = 'game.html?mode=online&room=' + code;
-            } else {
-                alert('Please enter a valid 6-character room code');
-            }
-        }
-    </script>
 </body>
 </html>

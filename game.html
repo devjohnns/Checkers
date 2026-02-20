@@ -7,10 +7,6 @@
 <body>
     <div class="container">
         <h1>Checkers Game</h1>
-        <div id="roomInfo" style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; display: none;">
-            <strong>Room Code: <span id="roomCode" style="font-size: 20px; color: #2196F3;"></span></strong>
-            <p style="margin: 5px 0;">Share this code with your friend to play together!</p>
-        </div>
         <div class="game-status">
             <div class="scores">
                 <span class="player-green">Green: <span id="green-score">0</span></span> | 
@@ -25,14 +21,6 @@
             <button onclick="location.href='index.html'" class="btn">Home</button>
         </div>
     </div>
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomCode = urlParams.get('room');
-        if (roomCode) {
-            document.getElementById('roomInfo').style.display = 'block';
-            document.getElementById('roomCode').textContent = roomCode;
-        }
-    </script>
-    <script src="static/js/game.js?v=3"></script>
+    <script src="static/js/game.js?v=4"></script>
 </body>
 </html>
