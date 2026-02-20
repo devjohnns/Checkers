@@ -6,85 +6,86 @@ let scores = { green: 0, white: 0 };
 let gameMode = new URLSearchParams(window.location.search).get('mode');
 let roomCode = new URLSearchParams(window.location.search).get('room');
 let playerColor = null;
-let db = null;
+let peer = null;
+let conn = null;
 
 if (gameMode === 'online' && roomCode) {
     const script = document.createElement('script');
-    script.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
-    script.onload = () => {
-        const dbScript = document.createElement('script');
-        dbScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js';
-        dbScript.onload = initFirebase;
-        document.head.appendChild(dbScript);
-    };
+    script.src = 'https://unpkg.com/peerjs@1.5.0/dist/peerjs.min.js';
+    script.onload = initPeer;
     document.head.appendChild(script);
+} else {
+    board = createBoard();
+    renderBoard();
 }
 
-function initFirebase() {
-    try {
-        firebase.initializeApp({
-            databaseURL: "https://checkers-game-default-rtdb.firebaseio.com/"
+function initPeer() {
+    peer = new Peer(roomCode);
+    
+    peer.on('open', (id) => {
+        playerColor = 'green';
+        board = createBoard();
+        renderBoard();
+        document.getElementById('message').textContent = 'Waiting for opponent to join...';
+    });
+    
+    peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnection();
+        document.getElementById('message').textContent = 'Opponent joined! You are Green - your turn!';
+    });
+    
+    peer.on('error', (err) => {
+        if (err.type === 'unavailable-id') {
+            playerColor = 'white';
+            conn = peer.connect(roomCode);
+            setupConnection();
+        }
+    });
+}
+
+function setupConnection() {
+    conn.on('open', () => {
+        if (playerColor === 'green') {
+            sendGameState();
+        } else {
+            document.getElementById('message').textContent = 'Connected! You are White - waiting for Green...';
+        }
+    });
+    
+    conn.on('data', (data) => {
+        board = data.board;
+        currentPlayer = data.currentPlayer;
+        scores = data.scores;
+        winner = data.winner;
+        updateUI();
+        renderBoard();
+    });
+}
+
+function sendGameState() {
+    if (conn && conn.open) {
+        conn.send({
+            board: board,
+            currentPlayer: currentPlayer,
+            scores: scores,
+            winner: winner
         });
-        db = firebase.database();
-        document.getElementById('message').textContent = 'Connecting to game...';
-        joinGame();
-    } catch (error) {
-        console.error('Firebase error:', error);
-        document.getElementById('message').textContent = 'Connection error. Please refresh.';
     }
 }
 
-function joinGame() {
-    const gameRef = db.ref('games/' + roomCode);
-    document.getElementById('message').textContent = 'Joining game...';
-    gameRef.once('value', (snapshot) => {
-        if (snapshot.exists()) {
-            const game = snapshot.val();
-            if (!game.player2) {
-                playerColor = 'white';
-                gameRef.update({ player2: true });
-                document.getElementById('message').textContent = 'You are White - waiting for Green to move...';
-            } else {
-                playerColor = 'green';
-                document.getElementById('message').textContent = 'You are Green - your turn!';
-            }
-        } else {
-            playerColor = 'green';
-            document.getElementById('message').textContent = 'You are Green - waiting for opponent...';
-            gameRef.set({
-                board: createBoard(),
-                currentPlayer: 'green',
-                scores: { green: 0, white: 0 },
-                player1: true,
-                player2: false,
-                winner: null
-            });
-        }
-        listenToGame();
-    });
-}
-
-function listenToGame() {
-    db.ref('games/' + roomCode).on('value', (snapshot) => {
-        const game = snapshot.val();
-        if (game) {
-            board = game.board;
-            currentPlayer = game.currentPlayer;
-            scores = game.scores;
-            winner = game.winner;
-            document.getElementById('green-score').textContent = scores.green;
-            document.getElementById('white-score').textContent = scores.white;
-            document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
-            document.getElementById('current-player').className = `player-${currentPlayer}`;
-            if (winner) {
-                document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
-                document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
-            } else {
-                document.getElementById('message').textContent = currentPlayer === playerColor ? 'Your turn' : 'Opponent\'s turn';
-            }
-            renderBoard();
-        }
-    });
+function updateUI() {
+    document.getElementById('green-score').textContent = scores.green;
+    document.getElementById('white-score').textContent = scores.white;
+    document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
+    document.getElementById('current-player').className = `player-${currentPlayer}`;
+    
+    if (winner) {
+        document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
+        document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
+    } else {
+        document.getElementById('message').textContent = currentPlayer === playerColor ? 'Your turn!' : 'Opponent\'s turn...';
+    }
 }
 
 function createBoard() {
@@ -172,12 +173,9 @@ function executeMove(fromRow, fromCol, toRow, toCol, captured) {
     }
     
     if (gameMode === 'online') {
-        db.ref('games/' + roomCode).update({
-            board: board,
-            currentPlayer: currentPlayer,
-            scores: scores,
-            winner: winner
-        });
+        sendGameState();
+        updateUI();
+        renderBoard();
     } else {
         document.getElementById('green-score').textContent = scores.green;
         document.getElementById('white-score').textContent = scores.white;
@@ -242,12 +240,9 @@ function resetGame() {
     board = createBoard();
     
     if (gameMode === 'online') {
-        db.ref('games/' + roomCode).update({
-            board: board,
-            currentPlayer: currentPlayer,
-            scores: scores,
-            winner: null
-        });
+        sendGameState();
+        updateUI();
+        renderBoard();
     } else {
         document.getElementById('green-score').textContent = '0';
         document.getElementById('white-score').textContent = '0';
@@ -284,9 +279,4 @@ function aiMove() {
         currentPlayer = 'white';
         executeMove(move.from[0], move.from[1], move.to[0], move.to[1], move.captured);
     }
-}
-
-if (gameMode !== 'online') {
-    board = createBoard();
-    renderBoard();
 }
