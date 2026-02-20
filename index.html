@@ -3,6 +3,33 @@
 <head>
     <title>Checkers Game</title>
     <link rel="stylesheet" href="static/css/style.css">
+    <style>
+        .start-btn {
+            display: block;
+            width: 300px;
+            margin: 10px auto;
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .start-btn:hover {
+            background-color: #45a049;
+        }
+        #joinCode {
+            display: block;
+            width: 280px;
+            margin: 10px auto;
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -12,8 +39,8 @@
         <button onclick="location.href='game.html?mode=2p'" class="start-btn">Two Player (Local)</button>
         <button onclick="createRoom()" class="start-btn">Play Online with Friend</button>
         <div style="margin-top: 20px;">
-            <input type="text" id="joinCode" placeholder="Enter room code" style="padding: 10px; font-size: 16px;">
-            <button onclick="joinRoom()" class="start-btn" style="margin-top: 10px;">Join Friend's Game</button>
+            <input type="text" id="joinCode" placeholder="Enter room code">
+            <button onclick="joinRoom()" class="start-btn">Join Friend's Game</button>
         </div>
     </div>
     <script>
