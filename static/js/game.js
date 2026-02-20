@@ -21,26 +21,36 @@ if (gameMode === 'online' && roomCode) {
 }
 
 function initFirebase() {
-    firebase.initializeApp({
-        databaseURL: "https://checkers-game-default-rtdb.firebaseio.com/"
-    });
-    db = firebase.database();
-    joinGame();
+    try {
+        firebase.initializeApp({
+            databaseURL: "https://checkers-game-default-rtdb.firebaseio.com/"
+        });
+        db = firebase.database();
+        document.getElementById('message').textContent = 'Connecting to game...';
+        joinGame();
+    } catch (error) {
+        console.error('Firebase error:', error);
+        document.getElementById('message').textContent = 'Connection error. Please refresh.';
+    }
 }
 
 function joinGame() {
     const gameRef = db.ref('games/' + roomCode);
+    document.getElementById('message').textContent = 'Joining game...';
     gameRef.once('value', (snapshot) => {
         if (snapshot.exists()) {
             const game = snapshot.val();
             if (!game.player2) {
                 playerColor = 'white';
                 gameRef.update({ player2: true });
+                document.getElementById('message').textContent = 'You are White - waiting for Green to move...';
             } else {
                 playerColor = 'green';
+                document.getElementById('message').textContent = 'You are Green - your turn!';
             }
         } else {
             playerColor = 'green';
+            document.getElementById('message').textContent = 'You are Green - waiting for opponent...';
             gameRef.set({
                 board: createBoard(),
                 currentPlayer: 'green',
@@ -50,7 +60,6 @@ function joinGame() {
                 winner: null
             });
         }
-        document.getElementById('message').textContent = playerColor === 'green' ? 'You are Green' : 'You are White';
         listenToGame();
     });
 }
