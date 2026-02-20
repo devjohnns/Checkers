@@ -13,6 +13,12 @@ if (gameMode === 'online' && roomCode) {
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/peerjs@1.5.0/dist/peerjs.min.js';
     script.onload = initPeer;
+    script.onerror = () => {
+        console.error('Failed to load PeerJS');
+        board = createBoard();
+        renderBoard();
+        document.getElementById('message').textContent = 'Multiplayer unavailable. Playing locally.';
+    };
     document.head.appendChild(script);
 } else {
     board = createBoard();
@@ -20,28 +26,42 @@ if (gameMode === 'online' && roomCode) {
 }
 
 function initPeer() {
-    peer = new Peer(roomCode);
-    
-    peer.on('open', (id) => {
-        playerColor = 'green';
+    try {
+        peer = new Peer(roomCode);
+        
+        peer.on('open', (id) => {
+            console.log('Peer opened:', id);
+            playerColor = 'green';
+            board = createBoard();
+            renderBoard();
+            document.getElementById('message').textContent = 'Waiting for opponent to join...';
+        });
+        
+        peer.on('connection', (connection) => {
+            console.log('Opponent connected');
+            conn = connection;
+            setupConnection();
+            document.getElementById('message').textContent = 'Opponent joined! You are Green - your turn!';
+        });
+        
+        peer.on('error', (err) => {
+            console.log('Peer error:', err.type);
+            if (err.type === 'unavailable-id') {
+                playerColor = 'white';
+                conn = peer.connect(roomCode);
+                setupConnection();
+            } else {
+                board = createBoard();
+                renderBoard();
+                document.getElementById('message').textContent = 'Connection error. Playing locally.';
+            }
+        });
+    } catch (error) {
+        console.error('PeerJS init error:', error);
         board = createBoard();
         renderBoard();
-        document.getElementById('message').textContent = 'Waiting for opponent to join...';
-    });
-    
-    peer.on('connection', (connection) => {
-        conn = connection;
-        setupConnection();
-        document.getElementById('message').textContent = 'Opponent joined! You are Green - your turn!';
-    });
-    
-    peer.on('error', (err) => {
-        if (err.type === 'unavailable-id') {
-            playerColor = 'white';
-            conn = peer.connect(roomCode);
-            setupConnection();
-        }
-    });
+        document.getElementById('message').textContent = 'Multiplayer unavailable. Playing locally.';
+    }
 }
 
 function setupConnection() {
