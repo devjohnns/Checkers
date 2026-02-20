@@ -3,24 +3,98 @@ let currentPlayer = 'green';
 let selected = null;
 let winner = null;
 let scores = { green: 0, white: 0 };
-let aiMode = new URLSearchParams(window.location.search).get('mode') === 'ai';
+let gameMode = new URLSearchParams(window.location.search).get('mode');
+let roomCode = new URLSearchParams(window.location.search).get('room');
+let playerColor = null;
+let db = null;
+
+if (gameMode === 'online' && roomCode) {
+    const script = document.createElement('script');
+    script.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
+    script.onload = () => {
+        const dbScript = document.createElement('script');
+        dbScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js';
+        dbScript.onload = initFirebase;
+        document.head.appendChild(dbScript);
+    };
+    document.head.appendChild(script);
+}
+
+function initFirebase() {
+    firebase.initializeApp({
+        databaseURL: "https://checkers-game-default-rtdb.firebaseio.com/"
+    });
+    db = firebase.database();
+    joinGame();
+}
+
+function joinGame() {
+    const gameRef = db.ref('games/' + roomCode);
+    gameRef.once('value', (snapshot) => {
+        if (snapshot.exists()) {
+            const game = snapshot.val();
+            if (!game.player2) {
+                playerColor = 'white';
+                gameRef.update({ player2: true });
+            } else {
+                playerColor = 'green';
+            }
+        } else {
+            playerColor = 'green';
+            gameRef.set({
+                board: createBoard(),
+                currentPlayer: 'green',
+                scores: { green: 0, white: 0 },
+                player1: true,
+                player2: false,
+                winner: null
+            });
+        }
+        document.getElementById('message').textContent = playerColor === 'green' ? 'You are Green' : 'You are White';
+        listenToGame();
+    });
+}
+
+function listenToGame() {
+    db.ref('games/' + roomCode).on('value', (snapshot) => {
+        const game = snapshot.val();
+        if (game) {
+            board = game.board;
+            currentPlayer = game.currentPlayer;
+            scores = game.scores;
+            winner = game.winner;
+            document.getElementById('green-score').textContent = scores.green;
+            document.getElementById('white-score').textContent = scores.white;
+            document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
+            document.getElementById('current-player').className = `player-${currentPlayer}`;
+            if (winner) {
+                document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
+                document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
+            } else {
+                document.getElementById('message').textContent = currentPlayer === playerColor ? 'Your turn' : 'Opponent\'s turn';
+            }
+            renderBoard();
+        }
+    });
+}
 
 function createBoard() {
-    board = Array(8).fill(null).map(() => Array(8).fill(null));
+    const newBoard = Array(8).fill(null).map(() => Array(8).fill(null));
     for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 8; col++) {
             if ((row + col) % 2 === 1) {
-                board[row][col] = { color: 'green', king: false };
+                newBoard[row][col] = { color: 'green', king: false };
             }
         }
     }
     for (let row = 5; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             if ((row + col) % 2 === 1) {
-                board[row][col] = { color: 'white', king: false };
+                newBoard[row][col] = { color: 'white', king: false };
             }
         }
     }
+    return newBoard;
 }
 
 function renderBoard() {
@@ -51,11 +125,13 @@ function renderBoard() {
 }
 
 function handleClick(row, col) {
+    if (gameMode === 'online' && currentPlayer !== playerColor) return;
+    if (gameMode === 'ai' && currentPlayer === 'white') return;
+    
     if (!selected) {
         if (board[row][col] && board[row][col].color === currentPlayer) {
-            if (aiMode && currentPlayer === 'white') return;
             selected = [row, col];
-            document.getElementById('message').textContent = `Selected piece at: Row ${row + 1}, Col ${col + 1}. Click destination square or another piece to select`;
+            document.getElementById('message').textContent = `Selected piece at: Row ${row + 1}, Col ${col + 1}`;
             renderBoard();
         }
     } else {
@@ -76,24 +152,39 @@ function executeMove(fromRow, fromCol, toRow, toCol, captured) {
         const [capRow, capCol] = captured;
         board[capRow][capCol] = null;
         scores[currentPlayer]++;
-        document.getElementById(`${currentPlayer}-score`).textContent = scores[currentPlayer];
     }
     if ((currentPlayer === 'green' && toRow === 7) || (currentPlayer === 'white' && toRow === 0)) {
         board[toRow][toCol].king = true;
     }
-    renderBoard();
+    
     winner = checkWinner();
-    if (winner) {
-        document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
-        document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
-    } else {
+    if (!winner) {
         currentPlayer = currentPlayer === 'green' ? 'white' : 'green';
+    }
+    
+    if (gameMode === 'online') {
+        db.ref('games/' + roomCode).update({
+            board: board,
+            currentPlayer: currentPlayer,
+            scores: scores,
+            winner: winner
+        });
+    } else {
+        document.getElementById('green-score').textContent = scores.green;
+        document.getElementById('white-score').textContent = scores.white;
         document.getElementById('current-player').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
         document.getElementById('current-player').className = `player-${currentPlayer}`;
-        document.getElementById('message').textContent = aiMode && currentPlayer === 'white' ? 'Computer is thinking...' : `Click a ${currentPlayer} piece to select it`;
-        if (aiMode && currentPlayer === 'white') {
-            setTimeout(aiMove, 800);
+        
+        if (winner) {
+            document.getElementById('status').innerHTML = `<span class="winner">${winner.toUpperCase()} Wins!</span>`;
+            document.getElementById('message').innerHTML = 'Game Over - <button onclick="resetGame()" class="btn">Start New Game</button>';
+        } else {
+            document.getElementById('message').textContent = gameMode === 'ai' && currentPlayer === 'white' ? 'Computer is thinking...' : `Click a ${currentPlayer} piece to select it`;
+            if (gameMode === 'ai' && currentPlayer === 'white') {
+                setTimeout(aiMove, 800);
+            }
         }
+        renderBoard();
     }
 }
 
@@ -139,14 +230,24 @@ function resetGame() {
     selected = null;
     winner = null;
     scores = { green: 0, white: 0 };
-    document.getElementById('green-score').textContent = '0';
-    document.getElementById('white-score').textContent = '0';
-    document.getElementById('current-player').textContent = 'Green';
-    document.getElementById('current-player').className = 'player-green';
-    document.getElementById('status').innerHTML = 'Current Player: <span id="current-player" class="player-green">Green</span>';
-    document.getElementById('message').textContent = 'Click a green piece to select it';
-    createBoard();
-    renderBoard();
+    board = createBoard();
+    
+    if (gameMode === 'online') {
+        db.ref('games/' + roomCode).update({
+            board: board,
+            currentPlayer: currentPlayer,
+            scores: scores,
+            winner: null
+        });
+    } else {
+        document.getElementById('green-score').textContent = '0';
+        document.getElementById('white-score').textContent = '0';
+        document.getElementById('current-player').textContent = 'Green';
+        document.getElementById('current-player').className = 'player-green';
+        document.getElementById('status').innerHTML = 'Current Player: <span id="current-player" class="player-green">Green</span>';
+        document.getElementById('message').textContent = 'Click a green piece to select it';
+        renderBoard();
+    }
 }
 
 function aiMove() {
@@ -176,5 +277,7 @@ function aiMove() {
     }
 }
 
-createBoard();
-renderBoard();
+if (gameMode !== 'online') {
+    board = createBoard();
+    renderBoard();
+}

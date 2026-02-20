@@ -1,8 +1,20 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import json
+import random
+import string
 
 app = Flask(__name__)
 app.secret_key = 'checkers_game_secret'
+
+# Room storage (in-memory for simplicity)
+rooms = {}
+
+def generate_room_code():
+    """Generate a unique 6-character room code"""
+    while True:
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        if code not in rooms:
+            return code
 
 def create_board():
     board = [[None for _ in range(8)] for _ in range(8)]
@@ -20,35 +32,115 @@ def create_board():
     
     return board
 
+def create_room():
+    """Create a new game room"""
+    code = generate_room_code()
+    rooms[code] = {
+        'board': create_board(),
+        'current_player': 'green',
+        'selected': None,
+        'winner': None,
+        'green_score': 0,
+        'white_score': 0,
+        'players': {'green': None, 'white': None},
+        'created': True
+    }
+    return code
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
+@app.route('/create')
+def create():
+    """Create a new game room and redirect to it"""
+    code = create_room()
+    return redirect(url_for('game', room=code))
+
+@app.route('/join', methods=['POST'])
+def join():
+    """Join an existing game room"""
+    code = request.form.get('room_code', '').upper().strip()
+    
+    if not code:
+        return render_template('index.html', error="Please enter a room code")
+    
+    if code not in rooms:
+        return render_template('index.html', error="Room not found. Check the code and try again.")
+    
+    return redirect(url_for('game', room=code))
+
 @app.route('/game')
-def game():
-    if 'board' not in session:
-        session['board'] = create_board()
-        session['current_player'] = 'green'
-        session['selected'] = None
-        session['winner'] = None
-        session['green_score'] = 0
-        session['white_score'] = 0
+@app.route('/game/<room>')
+def game(room=None):
+    # If no room code, create a new one
+    if not room:
+        room = create_room()
+        return redirect(url_for('game', room=room))
+    
+    # If room doesn't exist, create it
+    if room not in rooms:
+        rooms[room] = {
+            'board': create_board(),
+            'current_player': 'green',
+            'selected': None,
+            'winner': None,
+            'green_score': 0,
+            'white_score': 0,
+            'players': {'green': None, 'white': None},
+            'created': True
+        }
+    
+    room_data = rooms[room]
+    
+    # Determine player color based on who's viewing
+    player_color = session.get(f'player_{room}')
+    if not player_color:
+        # First visit - assign green to first player, white to second
+        if room_data['players']['green'] is None:
+            session[f'player_{room}'] = 'green'
+            room_data['players']['green'] = True
+            player_color = 'green'
+        elif room_data['players']['white'] is None:
+            session[f'player_{room}'] = 'white'
+            room_data['players']['white'] = True
+            player_color = 'white'
+        else:
+            # Room full - assign as spectator
+            session[f'player_{room}'] = 'spectator'
+            player_color = 'spectator'
     
     return render_template('game.html', 
-                         board=session['board'], 
-                         current_player=session['current_player'],
-                         selected=session['selected'])
+                         board=room_data['board'], 
+                         current_player=room_data['current_player'],
+                         selected=room_data['selected'],
+                         room_code=room,
+                         player_color=player_color,
+                         winner=room_data['winner'],
+                         green_score=room_data['green_score'],
+                         white_score=room_data['white_score'])
 
-@app.route('/move/<int:row>/<int:col>')
-def move(row, col):
-    board = session['board']
-    current_player = session['current_player']
-    selected = session['selected']
+@app.route('/move/<room>/<int:row>/<int:col>')
+def move(room, row, col):
+    if room not in rooms:
+        return redirect(url_for('index'))
+    
+    room_data = rooms[room]
+    board = room_data['board']
+    current_player = room_data['current_player']
+    selected = room_data['selected']
+    
+    # Get player's assigned color from session
+    player_color = session.get(f'player_{room}')
+    
+    # Only allow the current player to move
+    if player_color != current_player:
+        return redirect(url_for('game', room=room))
     
     if selected is None:
         # Select a piece
         if board[row][col] and board[row][col]['color'] == current_player:
-            session['selected'] = [row, col]
+            room_data['selected'] = [row, col]
     else:
         # Try to move
         from_row, from_col = selected
@@ -63,16 +155,11 @@ def move(row, col):
             if move_result['captured']:
                 cap_row, cap_col = move_result['captured']
                 board[cap_row][cap_col] = None
-                # Update score (with safe defaults)
-                if 'green_score' not in session:
-                    session['green_score'] = 0
-                if 'white_score' not in session:
-                    session['white_score'] = 0
-                    
+                
                 if current_player == 'green':
-                    session['green_score'] += 1
+                    room_data['green_score'] += 1
                 else:
-                    session['white_score'] += 1
+                    room_data['white_score'] += 1
             
             # Check for king promotion
             if (current_player == 'green' and row == 7) or (current_player == 'white' and row == 0):
@@ -81,15 +168,14 @@ def move(row, col):
             # Check win condition
             winner = check_winner(board)
             if winner:
-                session['winner'] = winner
+                room_data['winner'] = winner
             else:
                 # Switch players
-                session['current_player'] = 'white' if current_player == 'green' else 'green'
+                room_data['current_player'] = 'white' if current_player == 'green' else 'green'
         
-        session['selected'] = None
-        session['board'] = board
+        room_data['selected'] = None
     
-    return redirect(url_for('game'))
+    return redirect(url_for('game', room=room))
 
 def make_move(board, from_row, from_col, to_row, to_col, player):
     # Basic validation
@@ -144,15 +230,46 @@ def check_winner(board):
         return 'green'
     return None
 
-@app.route('/reset')
-def reset():
-    session.clear()
-    return redirect(url_for('game'))
+@app.route('/gameState/<room>')
+def game_state(room):
+    """Return current game state as JSON for polling"""
+    if room not in rooms:
+        return jsonify({'error': 'Room not found'}), 404
+    
+    room_data = rooms[room]
+    player_color = session.get(f'player_{room}')
+    
+    return jsonify({
+        'board': room_data['board'],
+        'current_player': room_data['current_player'],
+        'winner': room_data['winner'],
+        'green_score': room_data['green_score'],
+        'white_score': room_data['white_score'],
+        'selected': room_data['selected'],
+        'player_color': player_color
+    })
+
+@app.route('/reset/<room>')
+def reset_room(room):
+    """Reset a room's game"""
+    if room in rooms:
+        rooms[room] = {
+            'board': create_board(),
+            'current_player': 'green',
+            'selected': None,
+            'winner': None,
+            'green_score': 0,
+            'white_score': 0,
+            'players': rooms[room]['players'],  # Keep player assignments
+            'created': True
+        }
+    return redirect(url_for('game', room=room))
 
 @app.route('/new')
 def new_game():
     session.clear()
-    return redirect(url_for('game'))
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     app.run(debug=True)
+

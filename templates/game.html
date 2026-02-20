@@ -1,38 +1,109 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Checkers Game</title>
+    <title>Checkers Game - Room {{ room_code }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .room-info {
+            background: #1a1a1a;
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 2px solid #4CAF50;
+        }
+        .room-code {
+            font-size: 28px;
+            font-weight: bold;
+            color: #4CAF50;
+            letter-spacing: 5px;
+            margin: 10px 0;
+        }
+        .player-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .player-badge.green {
+            background: #4CAF50;
+            color: white;
+        }
+        .player-badge.white {
+            background: #f5f5f5;
+            color: #333;
+        }
+        .player-badge.spectator {
+            background: #ff9800;
+            color: white;
+        }
+        .waiting-message {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .not-your-turn {
+            background: #e3f2fd;
+            color: #0d47a1;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <h1>Checkers Game</h1>
         
-        <!-- Game Status using Jinja -->
+        <!-- Room Info -->
+        <div class="room-info">
+            <div>Room Code:</div>
+            <div class="room-code">{{ room_code }}</div>
+            <div>You are playing as: <span class="player-badge {{ player_color }}">{{ player_color }}</span></div>
+            {% if player_color == 'spectator' %}
+                <div class="waiting-message">Room is full - you are spectating</div>
+            {% endif %}
+        </div>
+        
+        <!-- Game Status -->
         <div class="game-status">
-            <!-- Score Display -->
             <div class="scores">
-                <span class="player-green">Green: {{ session.green_score or 0 }}</span> | 
-                <span class="player-white">White: {{ session.white_score or 0 }}</span>
+                <span class="player-green">Green: {{ green_score }}</span> | 
+                <span class="player-white">White: {{ white_score }}</span>
             </div>
             
-            {% if session.winner %}
-                <h2 class="winner"> {{ session.winner.title() }} Wins! </h2>
-                <p>Game Over - <a href="{{ url_for('reset') }}">Start New Game</a></p>
+            {% if winner %}
+                <h2 class="winner"> {{ winner.title() }} Wins! </h2>
+                <p>Game Over - <a href="{{ url_for('reset_room', room=room_code) }}" class="btn">Play Again</a></p>
             {% else %}
                 <h2>Current Player: 
                     <span class="player-{{ current_player }}">{{ current_player.title() }}</span>
                 </h2>
+                
+                {% if player_color != current_player and player_color != 'spectator' %}
+                    <div class="not-your-turn">Waiting for {{ current_player }} to move...</div>
+                {% endif %}
+                
                 {% if selected %}
                     <p>Selected piece at: Row {{ selected[0] + 1 }}, Col {{ selected[1] + 1 }}</p>
                     <p><em>Click destination square or another piece to select</em></p>
                 {% else %}
-                    <p>Click a {{ current_player }} piece to select it</p>
+                    {% if player_color == current_player %}
+                        <p>Click a {{ current_player }} piece to select it</p>
+                    {% else %}
+                        <p>Please wait for your turn</p>
+                    {% endif %}
                 {% endif %}
             {% endif %}
         </div>
 
-        <!-- Checkers Board using Jinja Loops -->
+        <!-- Checkers Board -->
         <div class="board">
             {% for row_index in range(8) %}
                 <div class="board-row">
@@ -41,9 +112,8 @@
                         {% set is_selected = selected and selected[0] == row_index and selected[1] == col_index %}
                         
                         <div class="square {{ square_color }} {% if is_selected %}selected{% endif %}" 
-                             {% if not session.winner %}onclick="location.href='{{ url_for('move', row=row_index, col=col_index) }}'"{% endif %}>
+                             {% if not winner and player_color == current_player %}onclick="location.href='{{ url_for('move', room=room_code, row=row_index, col=col_index) }}'"{% endif %}>
                             
-                            <!-- Display pieces using Jinja conditionals -->
                             {% if board[row_index][col_index] %}
                                 {% set piece = board[row_index][col_index] %}
                                 <div class="piece {{ piece.color }} {% if piece.king %}king{% endif %}">
@@ -58,9 +128,43 @@
 
         <!-- Game Controls -->
         <div class="controls">
-            <a href="{{ url_for('reset') }}" class="btn">Reset Game</a>
-            <a href="{{ url_for('index') }}" class="btn">Home</a>
+            <a href="{{ url_for('reset_room', room=room_code) }}" class="btn">Reset Game</a>
+            <a href="{{ url_for('index') }}" class="btn">Leave Room</a>
+        </div>
+        
+        <!-- Share Info -->
+        <div class="share-info">
+            <p>Share this room code with your friend: <strong>{{ room_code }}</strong></p>
         </div>
     </div>
+    
+    <!-- Auto-refresh for multiplayer sync -->
+    <script>
+        const roomCode = '{{ room_code }}';
+        const playerColor = '{{ player_color }}';
+        let lastBoardState = JSON.stringify({{ board | tojson | safe }});
+        
+        // Poll for game updates every 2 seconds
+        setInterval(async function() {
+            try {
+                const response = await fetch(`/gameState/${roomCode}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    const currentBoardState = JSON.stringify(data.board);
+                    
+                    // If board changed or turn changed, refresh
+                    if (currentBoardState !== lastBoardState) {
+                        lastBoardState = currentBoardState;
+                        location.reload();
+                    } else if (data.winner) {
+                        location.reload();
+                    }
+                }
+            } catch (e) {
+                console.log('Polling error:', e);
+            }
+        }, 2000);
+    </script>
 </body>
 </html>
+

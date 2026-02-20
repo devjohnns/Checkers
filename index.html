@@ -9,7 +9,22 @@
         <h1>Checkers Game</h1>
         <p>Choose Game Mode</p>
         <button onclick="location.href='game.html?mode=ai'" class="start-btn">Play vs Computer</button>
-        <button onclick="location.href='game.html?mode=2p'" class="start-btn">Two Player</button>
+        <button onclick="location.href='game.html?mode=2p'" class="start-btn">Two Player (Local)</button>
+        <button onclick="createRoom()" class="start-btn">Play Online with Friend</button>
+        <div style="margin-top: 20px;">
+            <input type="text" id="joinCode" placeholder="Enter room code" style="padding: 10px; font-size: 16px;">
+            <button onclick="joinRoom()" class="start-btn" style="margin-top: 10px;">Join Friend's Game</button>
+        </div>
     </div>
+    <script>
+        function createRoom() {
+            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            location.href = 'game.html?mode=online&room=' + code;
+        }
+        function joinRoom() {
+            const code = document.getElementById('joinCode').value.toUpperCase();
+            if (code) location.href = 'game.html?mode=online&room=' + code;
+        }
+    </script>
 </body>
 </html>
